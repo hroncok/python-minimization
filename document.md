@@ -172,7 +172,7 @@ The status quo however already **violates constraint (1)**: it breaks Python use
 
 One solution is to stop having such a big standard library. Python has existed for some time now and a lot of the standard library modules might no longer be relevant to the general audience.
 
-Our colleague Christian Heimes has proposed [PEP 594](https://www.python.org/dev/peps/pep-0594/) *Removing dead batteries from the standard library* for Python upstream. So far, it has not been approved and the discussion [turned out to be a heated one](http://pyfound.blogspot.com/2019/05/amber-brown-batteries-included-but.html). It proposes to remove 30 modules from the standard library for various reasons, mostly because they have better replacements or because they are no longer as useful as they once were.
+Our colleague Christian Heimes has proposed [PEP 594](https://www.python.org/dev/peps/pep-0594/) -- *Removing dead batteries from the standard library* for Python upstream. So far, it has not been approved and the discussion [turned out to be a heated one](http://pyfound.blogspot.com/2019/05/amber-brown-batteries-included-but.html). It proposes to remove 30 modules from the standard library for various reasons, mostly because they have better replacements or because they are no longer as useful as they once were.
 
 If approved, this would **save 1.4 MiB / 3.7%** or a bit less (two removed classes are parts of bigger files and the calculations were simplified to assume the entire file is no longer there - the difference is not significant).
 
@@ -181,13 +181,29 @@ Not to violate the (5) constraint, this however **has to happen in upstream**, t
 We are not aware of a static analyzer that would recognize dependencies on standard library modules and there is no existing metadata for this. Just removing the modules in Fedora (or moving them to an optional subpackage) would only cause breakage and break Python users' (1) and Fedora packagers' expectations (3).
 
 
-### Solution 2: Move large/all developer oriented modules to python3-devel
+### Solution 2: Move developer oriented modules to python3-devel (or split the stdlib into pieces)
 
-XXX unittest, lib2to3, ensurepip and venv
+Quite a handful of modules are clearly targeted at developers who code in Python and not at the users of the applications written in it.
 
-XXX breaks Python users' expectations or goes again the separate entrypoint/stack
+Here they are, largest first:
 
-XXX Static analysis of imports? Both within the stdlib and from RPM packages
+ 1. `pydoc_data`: Contains data for the `pydoc` module described below.
+ 2. `distutils`: Used when distributing and installing Python packages trough `setup.py` files. Predecessor of `setuptools`.
+ 3. `ensurepip`: Used to install `pip`, mostly to virtual environments via the `venv` module.
+ 4. `lib2to3`: Used by the `2to3` tool to convert legacy code to Python 3. Also used on install time trough `setup.py` files.
+ 5. `unittest`: A testing framework for unit test.
+ 6. `pydoc`: Generated developer documentation from docstrings.
+ 7. `doctest`: Tests if documentation reflects the reality.
+ 8. `venv`: Creates Python virtual environments.
+
+Moving all those modules to `python3-devel` (or `python3-libs-devel` etc.) could **save 6.1 MiB / 16%** and additional **1.5 MiB of wheels** (not calculated in the total amount we count percentages from).
+
+This would however **violate the (1) and (3) criterion**. Python users expect working `venv` and `unittest`. Fedora packagers would need to manually (remember: no metadata, no static analyzer) track runtime dependencies on such modules -- they actually happen, for example there are [modules depending on lib2to3](https://pypi.org/project/modernize/).
+
+Alternatively such thing would no longer be allowed to name itself Python. It would merely be a "minimal Python" with a separate entrypoint - and that **violates the (3) or (4) criterion** (depending on the actual implementation).
+
+Alternatively, this change would need to be driven upstream -- track dependencies on standard library modules and allow it to be shipped in parts. See also our draft [PEP 534](https://www.python.org/dev/peps/pep-0534/) -- *Improved Errors for Missing Standard Library Modules*.
+If implemented, this wold allow us to split the library to atomic parts and only make the actually used modules mandatory, saving an unknown amount of space (arguably quite large) and several external dependencies as well (such as `libsqlite3.so`, `libgdbm.so` etc.). We could basically do the `python3-tkinter` split at scale, via an upstream supported way.
 
 
 ### Solution 3: Compress large data-like modules
