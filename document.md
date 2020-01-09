@@ -34,7 +34,7 @@ However, if any non-goal becomes a side effect of the solution of our goal, good
 tl;dr Python 3.8.1 in Fedora has 111 MiB (approximately 77 3.5" floppy disks), but we only **install 37.5 MiB by default** (26 floppy disks).
 
 ![77 3.5" floppy disks](https://i.imgur.com/exrgnoQ.jpg)
-*77 3.5" floppy disks, courtesy of Dana Walker*
+*77 3.5" floppy disks, courtesy of Dana Walker. Imagine one of them is faulty.*
 
 (All numbers are real installed disk sizes based on the `python38` package installed on Fedora 31, x86_64. The split into subpackages is based on the `python3` package from Fedora 32. Slight differences between Fedora 31 and 32 or between various architectures are irrelevant here, we aim for a long term minimization. See the [source of the numbers](https://github.com/hroncok/python-minimization/blob/master/python-minimization.ipynb).)
 
@@ -208,24 +208,35 @@ If implemented, this wold allow us to split the library to atomic parts and only
 
 ### Solution 3: Compress large data-like modules
 
-XXX encodings, pydoc_data
+Some pure Python modules, like `encodings` or `pydoc_data` contain mostly data. We could compress the data in the modules.For example `pydoc_data` is basically a dictionary with very long strings. Those strings are repeated in source as well as various bytecode cache files.
 
-XXX zipimport / compress inline
+We could store them as compressed bytestrings instead.
 
-XXX violates the hot patch constraint, but only for some, can be done upstream
+Alternatively, we could leverage the Python's ability to import from a zip file and zip such modules. That prevents "hot patching" them on live system (constraint (2)), but if absolutely needed, they can be unzipped and edited. The need to live patch `encodings` or `pydoc_data` should not be very common.
 
-Probably OK, but a lot of manual work.
+Not all modules can be zipped, extra caution would be needed.
+For example, `pydoc` currently reads a CSS file like this:
 
+```python
+path_here = os.path.dirname(os.path.realpath(__file__))
+css_path = os.path.join(path_here, url)
+with open(css_path) as fp:
+    return ''.join(fp.readlines())
+```
+
+Similar code would need to be ported to [importlib.resources](https://docs.python.org/3/library/importlib.html#module-importlib.resources) -- changes like this are very likely accepted by upstream, but still needed to be carefully found first.
+
+Either way, when carefully only zipping `encodings` and `pydoc_data`, we could **save 3.4 MiB / 9 %**. When compressing the strings inline, we anticipate similar or worse result.
 
 ### Solution 4: ZIP the entire standard library
 
-XXX is that upstream OK?
+Stretching previous solution a bit further, we might want to zip the entire standard library (at least the pure Python parts). However, we are not sure whether this was anticipated by upstream and whether this does not in fact **violate constraint (5)**. Extra care would be needed.
 
-XXX might break
+This would require a great deal of testing and thorough analysis of half a million of lines of code.
 
-XXX violates the hot patch constraint - ship two versions of stdlib?
+Not only this will most likely break things, it will probably also **violate constraints (1) and (2)** (Python and Fedora users' expectations).
 
-XXX -O ?
+Nevertheless, this might (in theory) **save 17.8 MiB / 47 %**.
 
 
 ### Solution 5: Stop shipping mandatory bytecode cache
