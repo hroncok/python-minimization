@@ -47,7 +47,7 @@ And this is what you get optionally:
 
  - `python3-devel` contains the "development files" and makes it possible to compile extension modules, or build RPM packages with Python modules; has 4.5 MiB.
  - `python3-tkinter` contains the `tkinter` module and several others depending on it (e.g. `turtle`), it is *Recommended* (not *Required*) by `python3` when the *tk* framework is installed, to avoid an unnecessary dependency on *tk* and *X*; has 2 MiB.
- - `python3-idle` contains the [Python's Integrated Development and Learning Environment](https://docs.python.org/3/library/idle.html), an application, depends on `tkinter` and is not recommended not required by anything; has 4.2 MiB.
+ - `python3-idle` contains the [Python's Integrated Development and Learning Environment](https://docs.python.org/3/library/idle.html), an application, depends on `tkinter` and is not recommended nor required by anything; has 4.2 MiB.
  - `python3-test` has the `test` module (the selftest suite of Python) and tests contained in other modules (e.g. `lib2to3.tests`), most users don't need this package, it is the biggest part of Python; has 62.8 MiB.
  - `python-unversioned-command` contains the `/usr/bin/python`  symbolic link; has close to 0 Bytes.
 
@@ -125,7 +125,7 @@ We currently package the source files and the bytecode cache files as well, but 
 
 When a pure Python module gets imported for the first time after it has been modified (or first time ever), the bytecode cache is is created in `__pycache__/<modulename>.cpython-38.pyc` to be later used on subsequent imports. Why are the bytecode cache files created during the buildtime of the RPM `python3` package and shipped with the corresponding `.py` file? This is what would would happen if the files were not shipped:
 
- 1. If a non-root user executes Python code, Python won't succeed saving the file, the bytecode cache will not be written and hence there will be no future benefits from having the cache in the first place - startup will be slower. On each import, Python will attempt the write which might have further minor negative impact on performance.
+ 1. If a non-root user executes Python code, Python won't succeed saving the file, the bytecode cache will not be written and hence there will be no future benefits from having the cache in the first place -- startup will be slower. On each import, Python will attempt the write which might have further minor negative impact on performance.
  2. If a root user with restricted SELinux context executes Python code, then write operation will fail and the audit log will be pumped with AVC violations. The result is (1) + lots of noise.
  3. If a root user with unrestricted SELinux context runs Python code, Python is able to regenerate and store the `.pyc` files. They will then stay on disk after the package is removed (possibly updated to the next 3.X version) unless proper RPM level trickery is done (such as listing it as `%ghost`).
 
@@ -174,7 +174,7 @@ One solution is to stop having such a big standard library. Python has existed f
 
 Our colleague Christian Heimes has proposed [PEP 594](https://www.python.org/dev/peps/pep-0594/) -- *Removing dead batteries from the standard library* for Python upstream. So far, it has not been approved and the discussion [turned out to be a heated one](http://pyfound.blogspot.com/2019/05/amber-brown-batteries-included-but.html). It proposes to remove 30 modules from the standard library for various reasons, mostly because they have better replacements or because they are no longer as useful as they once were.
 
-If approved, this would **save 1.4 MiB / 3.7%** or a bit less (two removed classes are parts of bigger files and the calculations were simplified to assume the entire file is no longer there - the difference is not significant).
+If approved, this would **save 1.4 MiB / 3.7%** or a bit less (two removed classes are parts of bigger files and the calculations were simplified to assume the entire file is no longer there -- the difference is not significant).
 
 Not to violate the (5) constraint, this however **has to happen in upstream**, that means not sooner than in Python 3.10 (cca Fedora 35). This is not a kind of change that would benefit from pioneering in Fedora.
 
@@ -191,8 +191,8 @@ Here they are, largest first:
  2. `distutils`: Used when distributing and installing Python packages trough `setup.py` files. Predecessor of `setuptools`.
  3. `ensurepip`: Used to install `pip`, mostly to virtual environments via the `venv` module.
  4. `lib2to3`: Used by the `2to3` tool to convert legacy code to Python 3. Also used on install time trough `setup.py` files.
- 5. `unittest`: A testing framework for unit test.
- 6. `pydoc`: Generated developer documentation from docstrings.
+ 5. `unittest`: A testing framework for unit tests.
+ 6. `pydoc`: Generates developer documentation from docstrings.
  7. `doctest`: Tests if documentation reflects the reality.
  8. `venv`: Creates Python virtual environments.
 
@@ -328,23 +328,26 @@ assert 1
 
 When we examine all the bytecode cache files currently shipped with `python3-libs` and compare them between the optimization levels, we get:
 
+ - 607 modules have bytecode files
  - 454 identical optimization 0 and 1 pairs
  - 68 identical optimization 1 and 2 pairs
  - 62 identical optimization 0, 1 and 2 triads (already counted in both of the above)
 
 Since all of the bytecode caches are kept within the same folder, we can in fact hardlink them between each other and **save 4.0 MiB / 10.7 %**.
 
+It is also important to realize that most of the standard library modules have docstrings (except empty `__init__.py` files), but only every fourth has `__debug__` conditionals or asserts. If we also go with a solution that removes the second optimization level bytecode cache and combine it with this one, we can deduplicate optimization level 1 bytecode cache for three quarters of the modules.
+
 When the bytecode cache is updated for some reason, e.g. because the source file was updated by an administrator, the cache file is recreated, effectively breaking the hardlink. As more files get updated this way, the size naturally increases, but this does not break users' expectations.
 
 As a nice benefit, we can automatically do this with all Fedora Python RPM packages without any cons (except for an insignificant slowdown when comparing the files during build) saving potentially large amount of space. Cloud providers will go bankrupt.
 
-As a single data point for that general slim down: On my workstation I have 360.4 MiB of various Python 3.7 bytecode files in `/usr` and I can save 107.5 MiB.
+As a single data point for that general slim down: On my workstation I have 360 MiB of various Python 3.7 bytecode files in `/usr` and I can save 108 MiB.
 
 ### Solution 11: Stop shipping mandatory Python, rewrite dnf to Rust
 
 The main reason we need to ship Python everywhere is the package manager -- dnf. If we rewrite dnf to some non-Python, possibly compiled language such as Rust (or C if we enjoy segfaults), we don't need to ship Python at all. This might sound crazy, but see for example [microdnf](https://github.com/rpm-software-management/microdnf) -- a minimal dnf for (mostly) Docker containers that uses libdnf and hence doesn't require Python.
 
-This solution **saves 37.5 MiB / 100%** of mandatory Python. It possibly also saves more space by reducing the amount of installed Python packages, but increases the size of dnf itself. We can most likely assume a compiled executable would have a lesser footprint than a handful of Python modules used by dnf -- this doesn't violate constraint (4): the combined footprint of (micro)dnf + Python won't significantly larger than now.
+This solution **saves 37.5 MiB / 100%** of mandatory Python. It possibly also saves more space by reducing the amount of installed Python packages, but increases the size of dnf itself. We can most likely assume a compiled executable would have a lesser footprint than a handful of Python modules used by dnf -- this doesn't violate constraint (4): the combined footprint of (micro)dnf + Python won't be significantly larger than now.
 
 However, most importantly, this solution **violates constraint (2)**: Fedora users expect Python to be available, always. Missing Python could break stuff like Ansible based deployments.
 
@@ -352,10 +355,10 @@ However, most importantly, this solution **violates constraint (2)**: Fedora use
 
 ## Conclusion
 
-We will definitively <deduplicate>.
+We will definitively {deduplicate}.
 
-While <rust solution> might sound intriguing, it is unfortunately beyond our own ability. And even if we do that, we might want to lower the Python footprint anyway.
+While {rust solution} might sound intriguing, it is unfortunately beyond our own ability. And even if we do that, we might want to lower the Python footprint anyway.
 
-Hence, I propose on packaging level, we go explore solution <only bytecode> more deeply and possibly also solution <compress data> -- they don't contradict each other.
+Hence, I propose on packaging level, we go explore solution {only bytecode} more deeply and possibly also solution {compress data} -- they don't contradict each other.
 
-In upstream, we will continue to work on <dead batteries>. <compress pyc> would require hard work that might not be needed if we don't ship bytecode files, but if we ship bytecode files only, this might be worth exploring in the future as well. <compress source> sounds like a lot of upstream effort with questionable benefits.
+In upstream, we will continue to work on {dead batteries}. {compress pyc} would require hard work that might not be needed if we don't ship bytecode files, but if we ship bytecode files only, this might be worth exploring in the future as well. {compress source} sounds like a lot of upstream effort with questionable benefits.
