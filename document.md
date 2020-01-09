@@ -163,28 +163,39 @@ Now when we know what is on those 77 floppy disks, we can decide which ones need
 
 The status quo installs the mandatory 37.5 MiB (out of 111 MiB) by default. This is achieved by splitting various test modules, IDLE and tkinter to separate optional subpackages.
 
-How does that stand? This solution technically discards 51 floppy disks, gets rid of 73.5 MiB, saves 66% of space. That is pretty good. However, it is the status quo and we will use it as base to compare other proposed solutions, hence for the sake of our measurements, this **saves 0 MiB / 0%**.
+How does that stand? This solution technically discards 51 floppy disks, gets rid of 73.5 MiB, saves 66% of space. That is pretty good. However, it is the status quo and we will use it as base to compare other proposed solutions, hence for the sake of our measurements, this **saves 0 MiB / 0%**. All further percentage savings will be based on the current mandatory 37.5 MiB.
 
 The status quo however already **violates constraint (1)**: it breaks Python users' expectations. As a Python user, I expect the entire of the standard library to be installed, which is not the case. While Python comes pre-installed and ready to be used by developers and users alike, programs using the `tkinter` module will simply fail with a confusing `ModuleNotFoundError`. This has been the case forever and the situation is similar (or worse) with other Linux distributors of Python, such as Debian or openSUSE. Always installing `tkinter` would contradict the goal here, so we won't change that.
 
 
 ### Solution 1: Slim down the Python standard library
 
-XXX dead batteries PEP
-XXX upstream first
+One solution is to stop having such a big standard library. Python has existed for some time now and a lot of the standard library modules might no longer be relevant to the general audience.
+
+Our colleague Christian Heimes has proposed [PEP 594](https://www.python.org/dev/peps/pep-0594/) *Removing dead batteries from the standard library* for Python upstream. So far, it has not been approved and the discussion [turned out to be a heated one](http://pyfound.blogspot.com/2019/05/amber-brown-batteries-included-but.html). It proposes to remove 30 modules from the standard library for various reasons, mostly because they have better replacements or because they are no longer as useful as they once were.
+
+If approved, this would **save 1.4 MiB / 3.7%** or a bit less (two removed classes are parts of bigger files and the calculations were simplified to assume the entire file is no longer there - the difference is not significant).
+
+Not to violate the (5) constraint, this however **has to happen in upstream**, that means not sooner than in Python 3.10 (cca Fedora 35). This is not a kind of change that would benefit from pioneering in Fedora.
+
+We are not aware of a static analyzer that would recognize dependencies on standard library modules and there is no existing metadata for this. Just removing the modules in Fedora (or moving them to an optional subpackage) would only cause breakage and break Python users' (1) and Fedora packagers' expectations (3).
 
 
 ### Solution 2: Move large/all developer oriented modules to python3-devel
 
 XXX unittest, lib2to3, ensurepip and venv
+
 XXX breaks Python users' expectations or goes again the separate entrypoint/stack
+
 XXX Static analysis of imports? Both within the stdlib and from RPM packages
 
 
 ### Solution 3: Compress large data-like modules
 
 XXX encodings, pydoc_data
+
 XXX zipimport / compress inline
+
 XXX violates the hot patch constraint, but only for some, can be done upstream
 
 Probably OK, but a lot of manual work.
@@ -193,52 +204,69 @@ Probably OK, but a lot of manual work.
 ### Solution 4: ZIP the entire standard library
 
 XXX is that upstream OK?
+
 XXX might break
+
 XXX violates the hot patch constraint - ship two versions of stdlib?
+
 XXX -O ?
 
 
 ### Solution 5: Stop shipping mandatory bytecode cache
 
 XXX make bytecache optional subpackage, recommend if needed
+
 XXX %ghost the files
+
 XXX Fight SELinux?
+
 XXX Patch Python not to attempt the caching?
 
 
 ### Solution 6: Stop shipping mandatory optimized bytecode cache
 
 XXX The same but only for optimized
+
 XXX Patch Python to fallback to nonoptimized bytecode?
+
 XXX Argument: We don't ship opt-2 for other Python packages
 
 
 ### Solution 7: Stop shipping mandatory source files, ship .pyc instead
 
 XXX Needs to be renamed to `<modulename>.pyc`
+
 XXX Tracebacks? By default, we can have them.
+
 XXX Double bytecache?
+
 XXX Conflicting subpackages
+
 XXX Hardlinks created in %post?
+
 XXX Symbolic links with upstream support?
+
 XXX Can be combined with solution 6
 
 
 ### Solution 8: Compress .pyc files
 
 XXX add a "compressed" flag to pyc header, change importlib to unzip payload before unmarshalling
+
 XXX In upstream
 
 
 ### Solution 9: Compress source files
 
 XXX Change traceback (linecache) to unzip sources
+
 XXX violates the live edits constraint
 
 
 ### Solution 10: Deduplicate bytecode cache
 
 XXX Analyze the cache on build time, remove what is "the same"
+
 XXX Most likely doesn't make sense in the stdlib
 
 
