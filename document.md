@@ -234,7 +234,7 @@ Stretching previous solution a bit further, we might want to zip the entire stan
 
 This would require a great deal of testing and thorough analysis of half a million of lines of code.
 
-Not only this will most likely break things, it will probably also **violate constraints (1) and (2)** (Python and Fedora users' expectations).
+Not only this will most likely break things, it will probably also **violate constraints (1) and (2)** (Python and Fedora users' expectations). It can also increase the startup time.
 
 Nevertheless, this might (in theory) **save 17.8 MiB / 47 %**.
 
@@ -292,10 +292,53 @@ XXX violates the live edits constraint
 
 ### Solution 10: Deduplicate bytecode cache
 
-XXX Analyze the cache on build time, remove what is "the same"
+Given the nature of the bytecode caches, the non-optimized, optimized level 1 and optimized level 2 `.pyc` files may or may not be identical.
 
-XXX Most likely doesn't make sense in the stdlib
+Consider the following Python module:
 
+```python
+1
+```
+
+All three bytecode cache files would by identical.
+
+While with:
+
+```python
+assert 1
+```
+
+Only the two optimized cache files would be identical with each other.
+
+And this:
+
+```python
+"""Dummy module docstring"""
+1
+```
+
+Would produce two identical bytecode cache files but the opt-2 file would differ.
+
+Only modules like this would produce 3 different files:
+
+```python
+"""Dummy module docstring"""
+assert 1
+```
+
+When we examine all the bytecode cache files currently shipped with `python3-libs` and compare them between the optimization levels, we get:
+
+ - 454 identical optimization 0 and 1 pairs
+ - 68 identical optimization 1 and 2 pairs
+ - 62 identical optimization 0, 1 and 2 triads (already counted in both of the above)
+
+Since all of the bytecode caches are kept within the same folder, we can in fact hardlink them between each other and **save 4.0 MiB / 10.7 %**.
+
+When the bytecode cache is updated for some reason, e.g. because the source file was updated by an administrator, the cache file is recreated, effectively breaking the hardlink. As more files get updated this way, the size naturally increases, but this does not break users' expectations.
+
+As a nice benefit, we can automatically do this with all Fedora Python RPM packages without any cons (except for an insignificant slowdown when comparing the files during build) saving potentially large amount of space. Cloud providers will go bankrupt.
+
+As a single data point for that general slim down: On my workstation I have 360.4 MiB of various Python 3.7 bytecode files in `/usr` and I can save 107.5 MiB.
 
 ### Solution 11: Stop shipping mandatory Python, rewrite dnf to Rust
 
@@ -308,6 +351,8 @@ However, most importantly, this solution **violates constraint (2)**: Fedora use
 
 
 ## Conclusion
+
+We will definitively <deduplicate>.
 
 While <rust solution> might sound intriguing, it is unfortunately beyond our own ability. And even if we do that, we might want to lower the Python footprint anyway.
 
