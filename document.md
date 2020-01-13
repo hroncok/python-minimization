@@ -130,7 +130,7 @@ When a pure Python module gets imported for the first time after it has been mod
  3. If a root user with unrestricted SELinux context runs Python code, Python is able to regenerate and store the `.pyc` files. They will then stay on disk after the package is removed (possibly updated to the next 3.X version) unless proper RPM level trickery is done (such as listing it as `%ghost`).
 
 
-#### .opt-?.pyc optimized) bytecode caches
+#### .opt-?.pyc (optimized) bytecode caches
 
 Similarly to the previous point, the optimized bytecode cache files -- `__pycache__/<modulename>.cpython-38.opt-1.pyc` (or `...opt-2.pyc`) -- are created when Python is invoked with the `-O` (or `-OO`) flag.
 
@@ -250,6 +250,12 @@ This would require a great deal of testing and thorough analysis of half a milli
 
 Not only this will most likely break things, it will probably also **violate constraints (1) and (2)** (Python and Fedora users' expectations). It can also increase the startup time.
 
+To mitigate that, we might want to ship RPM packages with the standard library -- one uncompressed and one zipped:
+
+ - The `python3-libs` package would *Require* any of them (via virtual provides or boolean requires: `Requires: (python3-libs-modules or python3-libs-modules-zip)`).
+ - The `python3-lib` package would **Recommend** the uncompressed package.
+ - To avoid increasing the total filesystem footprint when both packages are installed, the packages might conflict with each other -- however that might be a bad user experience.
+
 Nevertheless, this might (in theory) **save 17.8 MiB / 47 %**.
 
 
@@ -349,19 +355,57 @@ Alternatively, we might make a case upstream and deprecate and remove `-00` beca
 
 ### Solution 7: Stop shipping mandatory source files, ship .pyc instead
 
-XXX Needs to be renamed to `<modulename>.pyc`
+Since the `.py` source files are not the ones that are imported by default, we might as well ship only the bytecode files mandatorily.
 
-XXX Tracebacks? By default, we can have them.
+To allow module discovery, we would need to rename and move the `.pyc` files from `__pycache__/module.cpython-38.pyc` to `../module.pyc`.
 
-XXX Double bytecache?
+When such file is located in `sys.path`, this is what happens:
 
-XXX Conflicting subpackages
+ - When only `module.py` exists (status quo), everything works as described in the first sections of this document.
+ - When both `module.py` and `module.pyc` exist, the `.pyc` is ignored and everything works as if it was not there (including the bytecode cache files in `__pycache__/*.pyc`).
+ - When only `module.pyc` exists, the module is imported from that bytecode cache file regardless of the optimization level (bytecode cache files in `__pycache__/*.pyc` are ignored). 
 
-XXX Hardlinks created in %post?
+When doing it this way (shipping only nonoptimized `.pyc`, not shipping source or additional bytecode caches (optimized), we would **save 21.7 MiB / 57.9 %**.
 
-XXX Symbolic links with upstream support?
+Several things would **violate Python/Fedora users' expectations (1)(2)**:
 
-XXX Can be combined with solution 6
+ - Tracebacks would not contain lines of sources.
+ - The source files would be gone -- not only users cannot edit them but they can no longer even read them.
+
+To mitigate that, we could have 2 RPM packages with the standard library (similarly to *Solution 4: ZIP the entire standard library*):
+
+ 1. One with moved `.pyc` files only.
+ 2. One with source `.py` files and `__pycache__` (possibly only recommended if combined with other solutions).
+
+
+In order to save ourselves from 2 conflicting subpackages, we might do it this way:
+
+ 1. The moved `.pyc` files package is mandatory.
+ 2. The other RPM package is recommended.
+
+This however **violates constraint (4)** -- default users would get two files with non-optimized bytecode cache. Unfortunately the files are in different directories, and hence we cannot hardlink them on the RPM level -- RPM only allows hardlinking files in the same directory to avoid cross filesystem hardlinks. If we symlink the files, Python currently does not follow them.
+
+If we get upstream support for following symbolic links, we might do something like this:
+
+```spec
+%files libs
+# Recommends libs-source
+.../module.pyc
+
+%files libs-source
+# Requires libs
+.../module.py
+%dir .../__pycache__/
+.../__pycache__/module.cpython-38.pyc  # symbolic link to ../module.pyc
+.../__pycache__/module.cpython-38.opt-1.pyc
+.../__pycache__/module.cpython-38.opt-2.pyc
+```
+
+With the two optimized caches optionally `%ghost`ed if combined with other solutions.
+
+If we don't get upstream support for following symbolic links, we might ship the duplicate bytecode cache files and change them to a hardlink in RPM scriptlet / trigger (if they are on the same filesystem, which is very likely).
+
+Alternatively, we might change the way the source and bytecode caches are prioritized on import time, with upstream coordination, to allow having the non-optimized `.pyc` file in just one location without loosing the benefits of having the source files. Such as having an (optionally compressed) source file in a `__pysource__` directory and load it when showing tracebacks.
 
 
 ### Solution 8: Compress .pyc files
@@ -371,14 +415,7 @@ XXX add a "compressed" flag to pyc header, change importlib to unzip payload bef
 XXX In upstream
 
 
-### Solution 9: Compress source files
-
-XXX Change traceback (linecache) to unzip sources
-
-XXX violates the live edits constraint
-
-
-### Solution 10: Deduplicate bytecode cache
+### Solution 9: Deduplicate bytecode cache
 
 Given the nature of the bytecode caches, the non-optimized, optimized level 1 and optimized level 2 `.pyc` files may or may not be identical.
 
@@ -431,7 +468,7 @@ As a nice benefit, we can automatically do this with all Fedora Python RPM packa
 
 As a single data point for that general slim down: On my workstation I have 360 MiB of various Python 3.7 bytecode files in `/usr` and I can save 108 MiB.
 
-### Solution 11: Stop shipping mandatory Python, rewrite dnf to Rust
+### Solution 10: Stop shipping mandatory Python, rewrite dnf to Rust
 
 The main reason we need to ship Python everywhere is the package manager -- dnf. If we rewrite dnf to some non-Python, possibly compiled language such as Rust (or C if we enjoy segfaults), we don't need to ship Python at all. This might sound crazy, but see for example [microdnf](https://github.com/rpm-software-management/microdnf) -- a minimal dnf for (mostly) Docker containers that uses libdnf and hence doesn't require Python.
 
