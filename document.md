@@ -36,7 +36,7 @@ tl;dr Python 3.8.1 in Fedora has 111 MiB (approximately 77 3.5" floppy disks), b
 ![77 3.5" floppy disks](https://i.imgur.com/exrgnoQ.jpg)
 *77 3.5" floppy disks, courtesy of Dana Walker. Imagine one of them is faulty.*
 
-(All numbers are real installed disk sizes based on the `python38` package installed on Fedora 31, x86_64. The split into subpackages is based on the `python3` package from Fedora 32. Slight differences between Fedora 31 and 32 or between various architectures are irrelevant here, we aim for a long term minimization. See the [source of the numbers](https://github.com/hroncok/python-minimization/blob/master/python-minimization.ipynb).)
+(All numbers are real installed disk sizes based on the `python38` package installed on Fedora 31, x86_64. The split into subpackages is based on the `python3` package from Fedora 32. Slight differences between Fedora 31 and 32 or between various architectures are irrelevant here, we aim for a long term minimization. See the [source of the numbers][source].)
 
 In Fedora we split the Python interpreter into various RPM subpackages, some of them are optional. This is what you get all the time:
 
@@ -148,9 +148,23 @@ The bytecode has asserts, `__debug__` conditionalized code and docstrings (with 
 
 If the cache files don't exist and the users invoke Python with `-O`/`-OO` (or other means, such as the [`PYTHONOPTIMIZE`](https://docs.python.org/3/using/cmdline.html#envvar-PYTHONOPTIMIZE) environment variable), everything bad from the previous section would happen.
 
-### Biggest things
+### Biggest things in python3-libs
 
-XXX *Present the table from the [Jupyter notebook](https://github.com/hroncok/python-minimization/blob/master/python-minimization.ipynb) here in a fancy way.* XXX
+module          | .py       | .pyc      | .opt-1.pyc | .opt-2.pyc | other       | total
+----------------|-----------|-----------|------------|------------|-------------|---------
+encodings       | 1.4 MiB   | 378.4 KiB | 377.9 KiB  | 362.4 KiB  | 24.0 KiB    | 2.5 MiB
+pydoc_data      | 656.1 KiB | 408.3 KiB | 408.3 KiB  | 408.3 KiB  | 8.0 KiB     | 1.8 MiB
+distutils       | 647.1 KiB | 421.3 KiB | 420.5 KiB  | 321.1 KiB  | 16.9 KiB    | 1.8 MiB
+ensurepip       | 7.6 KiB   | 6.5 KiB   | 6.5 KiB    | 5.9 KiB    | 8.0 KiB     | 34.4 KiB<br>+ 1.52 MiB wheels
+asyncio         | 441.2 KiB | 365.8 KiB | 363.6 KiB  | 291.2 KiB  | 8.0 KiB     | 1.4 MiB
+email           | 364.8 KiB | 283.1 KiB | 282.8 KiB  | 188.7 KiB  | 16.0 KiB    | 1.1 MiB
+unicodedata     |           |           |            |            | 1.0 MiB .so | 1.0 MiB
+xml             | 288.5 KiB | 242.8 KiB | 241.8 KiB  | 196.4 KiB  | 40.0 KiB    | 1009.5 KiB
+lib2to3         | 281.1 KiB | 237.3 KiB | 234.2 KiB  | 185.9 KiB  | 32.0 KiB    | 993.4 KiB
+multiprocessing | 262.9 KiB | 222.7 KiB | 220.4 KiB  | 203.1 KiB  | 16.0 KiB    | 925.1 KiB
+
+
+See the remaining lines in the [data source][source].
 
 ## Possible solutions
 
@@ -362,3 +376,6 @@ While {rust solution} might sound intriguing, it is unfortunately beyond our own
 Hence, I propose on packaging level, we go explore solution {only bytecode} more deeply and possibly also solution {compress data} -- they don't contradict each other.
 
 In upstream, we will continue to work on {dead batteries}. {compress pyc} would require hard work that might not be needed if we don't ship bytecode files, but if we ship bytecode files only, this might be worth exploring in the future as well. {compress source} sounds like a lot of upstream effort with questionable benefits.
+
+
+[source]: https://github.com/hroncok/python-minimization/blob/master/python-minimization.ipynb
