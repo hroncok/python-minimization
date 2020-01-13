@@ -410,9 +410,9 @@ Alternatively, we might change the way the source and bytecode caches are priori
 
 ### Solution 8: Compress .pyc files
 
-XXX add a "compressed" flag to pyc header, change importlib to unzip payload before unmarshalling
+We might propose an upstream change (pioneered in Fedora) to add option to compress the `.pyc` files. We would add a "compressed" flag to `.pyc` header, and we would change `importlib` to unzip the payload before unmarshalling (deserializing) the bytecode.
 
-XXX In upstream
+This would potentially save **10.2 MiB / 27.2%**, but it might have negative impact on performance. The number is based on actually zipping each individual `.pyc` file, not on only compressing the content.
 
 
 ### Solution 9: Deduplicate bytecode cache
