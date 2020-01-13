@@ -8,7 +8,7 @@
 
 One of the biggest things in Fedora is Python. Because [Fedora loves Python](https://fedoralovespython.org/) and because the package manager for Fedora packages -- dnf -- happens to be written in Python, the Python interpreter and its standard library comes pre-installed on many (if not all) Fedora systems and is often not possible to remove it without destroying the system completely or making it unmanageable.
 
-Python comes with [Batteries Included](https://en.wikipedia.org/wiki/Batteries_Included) -- the standard library is quite big. While pleasant for the programmers, this comes with a large filesystem footprint not entirely desired in Fedora. In this document, we will analyze the footprint and offer several minimization solutions/ideas with their challenges, pros (MiBs saved) and cons.
+Python comes with [Batteries Included](https://en.wikipedia.org/wiki/Batteries_Included) -- the standard library is quite big. While pleasant for the programmers, this comes with a large filesystem footprint not entirely desired in Fedora. In this document, we will analyze the footprint and offer several minimization solutions/ideas with their challenges, pros (MiB saved) and cons.
 
 **Goal:**
 
@@ -74,7 +74,7 @@ The Python 3.8 standard library has 276 different top-level modules, the biggest
 
 Some modules here are interesting becasue they contain mostly data (`encodings`, `pydoc_data`, `unicodedata`), or because they are obviously developer oriented and very rarely used on runtime (`distutils`, `lib2to3`, `unittest`).
 
-Special case is the `ensurepip` module - it has only 34.4 KiB, but it *Requires* unbundled `python-pip-wheel` (1.18 MiB) and `python-setuptools-wheel` (348 KiB) - that puts it between (3) and (4) in the above statistics with 1.56 MiB in total.
+A special case is the `ensurepip` module -- it has only 34.4 KiB, but it *Requires* unbundled `python-pip-wheel` (1.18 MiB) and `python-setuptools-wheel` (348 KiB) - that puts it between (3) and (4) in the above statistics with 1.56 MiB in total.
 
 
 
@@ -89,7 +89,7 @@ Each pure Python module comes in 4 files:
 - `__pycache__/module.cpython-38.opt-1.pyc` -- optimized bytecode cache (level 1)
 - `__pycache__/module.cpython-38.opt-2.pyc` -- optimized bytecode cache (level 2)
 
-Where each of the file has different purpose (explained below) and each of the files is wasting the precious storage space.
+Each of these files has a different purpose (explained below) and each of the files is wasting precious storage space.
 
 In total, the different file types in `/usr/lib64/python3.8/` take:
 
@@ -111,9 +111,9 @@ We see that the various filetypes of pure Python modules occupy significant amou
 
 #### .py source files
 
-Python is an interpreted language. As such, when you `import` a pure Python module, it is primarily loaded from the `.py` source. The source is pasred and loaded to Python bytecode, which is stored in memory and executed. To speed things up, the bytecode is cached to special files described below. When the cached bytecode already exists (and considered valid), the module is loaded from there, bypassing the source code.
+Python is an interpreted language. As such, when you `import` a pure Python module, it is primarily loaded from the `.py` source. The source is parsed and loaded to Python bytecode, which is stored in memory and executed. To speed things up, the bytecode is cached to special files described below. When the cached bytecode already exists (and considered valid), the module is loaded from there, bypassing the source code.
 
-We currently package the source files and the bytecode cache files as well, but the source file are still needed. They are used in the following ways:
+We currently package the source files and the bytecode cache files as well, but the source files are still needed. They are used in the following ways:
 
  - module discovery -- the bytecode cache files in `__pycache__` are not importable without the source files;
  - tracebacks -- when Python raises an uncaught exception, it is presented in a form of a *traceback* containing the original source code, loaded from the source files on demand;
@@ -273,7 +273,7 @@ When a non-root user runs Python code, the bytecode cache is never created.
 
 This can result in potentially slower start of Python apps. However, that might be OK: The wast majority of Fedora users will get the *Recommended* bytecode cache and the rest will have a small slowdown. This does not violate users' expectations **if documented properly** - most users get the old behavior (the default remains fast, but big).
 
-Optionally, we might patch Python to warn in that case and suggest installing the appropriate subpackage. That would of course be a downstream only patch and would **violate constraint (5)**. Alternatively, the warning might suggest running a specific command as root to populate the cache -- that might (or might not) be acceptable upstream, yet arguably it is not a very nice user experience.
+Optionally, we might patch Python to warn in that case and suggest installing the appropriate subpackage. That would of course be a downstream only patch and would **violate constraint (5)**. Alternatively, the warning might suggest running a specific command as root to populate the cache -- that might (or might not) be acceptable upstream. Arguably it is not a very nice user experience, and also it only helps with limited bandwith, not limited storage space.
 
 #### Problem 5.2: SELinux denials
 
@@ -281,7 +281,7 @@ When a root user with restricted SELinux context runs Python code, the bytecode 
 
 As a workaround, we might work with the SELinux experts to allow the Python process to write the bytecode cache even in restricted context.
 
-This could be **potentially security problematic** -- any malicious code written in Python would be able to store malicious bytecode in the cache -- all other invocations of Python would execute that bytecode instead of the proper one.
+This could be a **potential security problem** -- any malicious code written in Python would be able to store malicious bytecode in the cache -- all other invocations of Python would execute that bytecode instead of the proper one.
 
 As such, we *think* this **violates constraint (2)** -- Fedora users expect that SELinux keeps them safe. However, we don't really know what level of protection is expected here: This might require further discussions.
 
@@ -317,7 +317,7 @@ Example pseudo-specfile snippet:
 
 Our experiments show that if two packages co-own a file and one of them is marked as `%ghost`, everything works as expected:
 
- - manually created `.pyc` file is overrode by the packaged one without a conflict/error/warning/problem
+ - manually created `.pyc` file is overridden by the packaged one without a conflict/error/warning/problem
  - manually created `.pyc` file is removed on package removal
 
 Hence, we anticipate this point as potentially non-problematic, however real testing with the `python3` package has not yet been done.
@@ -339,7 +339,7 @@ We can patch Python to fallback to less optimized bytecode cache if the properly
  1. opt-1 would fallback to non-optimized
  1. non-optimized would always be present
 
-This workaround would require a change of the current caching logic. Either, there will be no attempt to write the new bytecache files if the less optimized bytecode cache exists, or Python would check if it can write the bytecode cache and only fallback to less optimized ones if it cannot write to the destination.
+This workaround would require a change of the current caching logic. Either there will be no attempt to write the new bytecache files if the less optimized bytecode cache exists, or Python would check if it can write the bytecode cache and only fallback to less optimized ones if it cannot write to the destination.
 
 This workaround however **violates Python users' expectations (1)**: It executes less optimized bytecode than the user has elected to. At the same time, this **violates (5)** if done downstream-only. Both can be **solved by doing this with upstream coordination** -- designing a PEP that describes this behavior into great detail, implement the behavior in Fedora and bring it upstream once ready. Impact on performance would need to be evaluated as well.
 
@@ -347,7 +347,7 @@ This workaround however **violates Python users' expectations (1)**: It executes
 
 It is important to note that optimization level 2 bytecode cache in Fedora is already partially "broken". In the times of Python 2 and 3.4 or less, both non-zero optimization levels shared the same bytecode cache paths. Hence the Fedora packages only shipped optimization level 1 `.pyo` files (`o` for optimized).
 
-Python 3.5 has alerted the paths to make optimization 1 and 2 cache coexistable and the `python3` package was adapted to ship all 3 levels of optimization (0, 1 and 2), but all the other packages still only ship two (0 and 1) -- [`brp-python-bytecompile` and `%py_byte_compile`](https://docs.fedoraproject.org/en-US/packaging-guidelines/Python_Appendix/#manual-bytecompilation) both only compile for the two levels. That means all the problems with missing bytecode cache files are actually already happening with all Fedora's Python 3 RPM packages when Python is executed with `-OO` or when `PYTHONOPTIMIZE` is set to 2+.
+Python 3.5 has altered the paths to make optimization 1 and 2 cache coexistable and the `python3` package was adapted to ship all 3 levels of optimization (0, 1 and 2), but all the other packages still only ship two (0 and 1) -- [`brp-python-bytecompile` and `%py_byte_compile`](https://docs.fedoraproject.org/en-US/packaging-guidelines/Python_Appendix/#manual-bytecompilation) both only compile for the two levels. That means all the problems with missing bytecode cache files are actually already happening with all Fedora's Python 3 RPM packages (except `python3-libs` itself) when Python is executed with `-OO` or when `PYTHONOPTIMIZE` is set to 2+.
 
 This has been the case **since Fedora 24** and **nobody has ever reported it as a problem** -- hence we might just drop the optimization level 2 bytecode cache and consider the problems an unsupported corner case. That would **save 5.2 MiB / 14%**. Technically this is wrong, but pragmatically it works just fine.
 
@@ -405,12 +405,12 @@ With the two optimized caches optionally `%ghost`ed if combined with other solut
 
 If we don't get upstream support for following symbolic links, we might ship the duplicate bytecode cache files and change them to a hardlink in RPM scriptlet / trigger (if they are on the same filesystem, which is very likely).
 
-Alternatively, we might change the way the source and bytecode caches are prioritized on import time, with upstream coordination, to allow having the non-optimized `.pyc` file in just one location without loosing the benefits of having the source files. Such as having an (optionally compressed) source file in a `__pysource__` directory and load it when showing tracebacks.
+Alternatively, we might change the way the source and bytecode caches are prioritized on import time, with upstream coordination, to allow having the non-optimized `.pyc` file in just one location without losing the benefits of having the source files. Such as having an (optionally compressed) source file in a `__pysource__` directory and loading it when showing tracebacks.
 
 
 ### Solution 8: Compress .pyc files
 
-We might propose an upstream change (pioneered in Fedora) to add option to compress the `.pyc` files. We would add a "compressed" flag to `.pyc` header, and we would change `importlib` to unzip the payload before unmarshalling (deserializing) the bytecode.
+We might propose an upstream change (pioneered in Fedora) to add an option to compress the `.pyc` files. We would add a "compressed" flag to the `.pyc` header, and we would change `importlib` to unzip the payload before unmarshalling (deserializing) the bytecode.
 
 This would potentially save **10.2 MiB / 27.2%**, but it might have negative impact on performance. The number is based on actually zipping each individual `.pyc` file, not on only compressing the content.
 
@@ -464,7 +464,7 @@ It is also important to realize that most of the standard library modules have d
 
 When the bytecode cache is updated for some reason, e.g. because the source file was updated by an administrator, the cache file is recreated, effectively breaking the hardlink. As more files get updated this way, the size naturally increases, but this does not break users' expectations.
 
-As a nice benefit, we can automatically do this with all Fedora Python RPM packages without any cons (except for an insignificant slowdown when comparing the files during build) saving potentially large amount of space. Cloud providers will go bankrupt.
+As a nice benefit, we can automatically do this with all Fedora Python RPM packages without any cons (except for an insignificant slowdown when comparing the files during build) saving potentially large amounts of space. Cloud providers will go bankrupt.
 
 As a single data point for that general slim down: On my workstation I have 360 MiB of various Python 3.7 bytecode files in `/usr` and I can save 108 MiB.
 
