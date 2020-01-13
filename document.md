@@ -480,7 +480,7 @@ However, most importantly, this solution **violates constraint (2)**: Fedora use
 
 ## Conclusion
 
-You can see that some of the solutions offer significant slim-down with very little constrains why other solutions may turn out to be to breaking. At the same time, various solutions can be combined.
+You can see that some of the solutions offer significant slim-down with very little struggle, while other solutions may turn out to be to breaking. At the same time, various solutions can be combined.
 
 For now, we plan to start with bytecode cache deduplication, and we will let the Fedora community discuss our proposals. After all, there might be holes in them and the list is certainly not complete.
 
