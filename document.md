@@ -486,3 +486,7 @@ For now, we plan to start with bytecode cache deduplication, and we will let the
 
 
 [source]: https://github.com/hroncok/python-minimization/blob/master/python-minimization.ipynb
+
+## Copyright
+
+This document is placed in the public domain or under the CC0-1.0-Universal license, whichever is more permissive.
