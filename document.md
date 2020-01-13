@@ -321,12 +321,31 @@ Hence, we anticipate this point as potentially non-problematic, however real tes
 
 ### Solution 6: Stop shipping mandatory optimized bytecode cache
 
-XXX The same but only for optimized
+This is essentially the same as previous solution except we would keep the non-optimized bytecode cache mandatory. That gives us several more options to workaround the caveats.
 
-XXX Patch Python to fallback to nonoptimized bytecode?
+This would **save 11.9 MiB / 32%**.
 
-XXX Argument: We don't ship opt-2 for other Python packages
+#### Workaround 6.1: Fallback to less optimized bytecode cache
 
+We can patch Python to fallback to less optimized bytecode cache if the properly optimized bytecode cache does not exist or cannot be created.
+
+ 1. opt-2 would fallback to opt-1 or non-optimized (in this order)
+ 1. opt-1 would fallback to non-optimized
+ 1. non-optimized would always be present
+
+This workaround would require a change of the current caching logic. Either, there will be no attempt to write the new bytecache files if the less optimized bytecode cache exists, or Python would check if it can write the bytecode cache and only fallback to less optimized ones if it cannot write to the destination.
+
+This workaround however **violates Python users' expectations (1)**: It executes less optimized bytecode than the user has elected to. At the same time, this **violates (5)** if done downstream-only. Both can be **solved by doing this with upstream coordination** -- designing a PEP that describes this behavior into great detail, implement the behavior in Fedora and bring it upstream once ready. Impact on performance would need to be evaluated as well.
+
+#### Optimization level 2 is already broken
+
+It is important to note that optimization level 2 bytecode cache in Fedora is already partially "broken". In the times of Python 2 and 3.4 or less, both non-zero optimization levels shared the same bytecode cache paths. Hence the Fedora packages only shipped optimization level 1 `.pyo` files (`o` for optimized).
+
+Python 3.5 has alerted the paths to make optimization 1 and 2 cache coexistable and the `python3` package was adapted to ship all 3 levels of optimization (0, 1 and 2), but all the other packages still only ship two (0 and 1) -- [`brp-python-bytecompile` and `%py_byte_compile`](https://docs.fedoraproject.org/en-US/packaging-guidelines/Python_Appendix/#manual-bytecompilation) both only compile for the two levels. That means all the problems with missing bytecode cache files are actually already happening with all Fedora's Python 3 RPM packages when Python is executed with `-OO` or when `PYTHONOPTIMIZE` is set to 2+.
+
+This has been the case **since Fedora 24** and **nobody has ever reported it as a problem** -- hence we might just drop the optimization level 2 bytecode cache and consider the problems an unsupported corner case. That would **save 5.2 MiB / 14%**. Technically this is wrong, but pragmatically it works just fine.
+
+Alternatively, we might make a case upstream and deprecate and remove `-00` because we don't use it -- however we are not sure if that is a good enough reason.
 
 ### Solution 7: Stop shipping mandatory source files, ship .pyc instead
 
