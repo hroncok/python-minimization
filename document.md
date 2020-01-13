@@ -148,7 +148,7 @@ The bytecode has asserts, `__debug__` conditionalized code and docstrings (with 
 
 If the cache files don't exist and the users invoke Python with `-O`/`-OO` (or other means, such as the [`PYTHONOPTIMIZE`](https://docs.python.org/3/using/cmdline.html#envvar-PYTHONOPTIMIZE) environment variable), everything bad from the previous section would happen.
 
-### Biggest things in python3-libs
+### Biggest modules in python3-libs, breakdown by file type
 
 module          | .py       | .pyc      | .opt-1.pyc | .opt-2.pyc | other       | total
 ----------------|-----------|-----------|------------|------------|-------------|---------
@@ -255,13 +255,68 @@ Nevertheless, this might (in theory) **save 17.8 MiB / 47 %**.
 
 ### Solution 5: Stop shipping mandatory bytecode cache
 
-XXX make bytecache optional subpackage, recommend if needed
+This solution sounds simple: We do no longer ship the bytecode cache mandatorily. Technically, we move the `.pyc` files to a subpackage of `python3-libs` (or three different subpackages, that is not important here). And we only *Recommend* them from `python3-libs` -- by default, the users get them, but for space critical Fedora flavors (such as container images) the maintainers can opt-out and so can the powerusers.
 
-XXX %ghost the files
+This would **save 18.6 MiB / 50%** -- quite a lot.
 
-XXX Fight SELinux?
+However, as said earlier, if the bytecode cache files are not there, Python attempts to create them upon first import. That can result in several problems, here we will try to propose how to workaround them.
 
-XXX Patch Python not to attempt the caching?
+#### Problem 5.1: Slower starts without bytecode cache
+
+When a non-root user runs Python code, the bytecode cache is never created.
+
+This can result in potentially slower start of Python apps. However, that might be OK: The wast majority of Fedora users will get the *Recommended* bytecode cache and the rest will have a small slowdown. This does not violate users' expectations **if documented properly** - most users get the old behavior (the default remains fast, but big).
+
+Optionally, we might patch Python to warn in that case and suggest installing the appropriate subpackage. That would of course be a downstream only patch and would **violate constraint (5)**. Alternatively, the warning might suggest running a specific command as root to populate the cache -- that might (or might not) be acceptable upstream, yet arguably it is not a very nice user experience.
+
+#### Problem 5.2: SELinux denials
+
+When a root user with restricted SELinux context runs Python code, the bytecode cache is not created and the audit log is pumped with AVC violations. The result is the same as in 5.1 plus noise.
+
+As a workaround, we might work with the SELinux experts to allow the Python process to write the bytecode cache even in restricted context.
+
+This could be **potentially security problematic** -- any malicious code written in Python would be able to store malicious bytecode in the cache -- all other invocations of Python would execute that bytecode instead of the proper one.
+
+As such, we *think* this **violates constraint (2)** -- Fedora users expect that SELinux keeps them safe. However, we don't really know what level of protection is expected here: This might require further discussions.
+
+#### Problem 5.3: Leftover bytecode cache files
+
+When a root user with unrestricted SELinux context runs Python code, the bytecode cache is created.
+
+As such, it would need to be marked as `%ghost` in the RPM package with the Python source, while it would exist as real file in the RPM package with the bytecode cache.
+
+Example pseudo-specfile snippet:
+
+```spec
+%files libs
+# this package Recommends the 3 packages below
+.../module.py
+%dir .../__pycache__/
+%ghost .../__pycache__/module.cpython-38.pyc
+%ghost .../__pycache__/module.cpython-38.opt-1.pyc
+%ghost .../__pycache__/module.cpython-38.opt-2.pyc
+
+%files libs-bytecode-cache
+# this package Requires the libs subpackage
+.../__pycache__/module.cpython-38.pyc
+
+%files libs-bytecode-cache-opt-1
+# this package Requires the libs subpackage
+.../__pycache__/module.cpython-38.opt-1.pyc
+
+%files libs-bytecode-cache-opt-2
+# this package Requires the libs subpackage
+.../__pycache__/module.cpython-38.opt-2.pyc
+```
+
+Our experiments show that if two packages co-own a file and one of them is marked as `%ghost`, everything works as expected:
+
+ - manually created `.pyc` file is overrode by the packaged one without a conflict/error/warning/problem
+ - manually created `.pyc` file is removed on package removal
+
+Hence, we anticipate this point as potentially non-problematic, however real testing with the `python3` package has not yet been done.
+
+*Note:* If we are to eventually adapt this in all Python RPM packages to gain even more space, this would certainly need more RPM-level abstraction with macros and dark magic (like the debuginfo packages) -- we cannot anticipate all Fedora Python package maintainers to manually do this. However for now, we would only do it in `python3-libs` as written in the goal of this document.
 
 
 ### Solution 6: Stop shipping mandatory optimized bytecode cache
@@ -369,13 +424,9 @@ However, most importantly, this solution **violates constraint (2)**: Fedora use
 
 ## Conclusion
 
-We will definitively {deduplicate}.
+You can see that some of the solutions offer significant slim-down with very little constrains why other solutions may turn out to be to breaking. At the same time, various solutions can be combined.
 
-While {rust solution} might sound intriguing, it is unfortunately beyond our own ability. And even if we do that, we might want to lower the Python footprint anyway.
-
-Hence, I propose on packaging level, we go explore solution {only bytecode} more deeply and possibly also solution {compress data} -- they don't contradict each other.
-
-In upstream, we will continue to work on {dead batteries}. {compress pyc} would require hard work that might not be needed if we don't ship bytecode files, but if we ship bytecode files only, this might be worth exploring in the future as well. {compress source} sounds like a lot of upstream effort with questionable benefits.
+For now, we plan to start with bytecode cache deduplication, and we will let the Fedora community discuss our proposals. After all, there might be holes in them and the list is certainly not complete.
 
 
 [source]: https://github.com/hroncok/python-minimization/blob/master/python-minimization.ipynb
