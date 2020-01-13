@@ -477,7 +477,6 @@ This solution **saves 37.5 MiB / 100%** of mandatory Python. It possibly also sa
 However, most importantly, this solution **violates constraint (2)**: Fedora users expect Python to be available, always. Missing Python could break stuff like Ansible based deployments.
 
 
-
 ## Conclusion
 
 You can see that some of the solutions offer significant slim-down with very little struggle, while other solutions may turn out to be to breaking. At the same time, various solutions can be combined.
@@ -485,8 +484,8 @@ You can see that some of the solutions offer significant slim-down with very lit
 For now, we plan to start with bytecode cache deduplication, and we will let the Fedora community discuss our proposals. After all, there might be holes in them and the list is certainly not complete.
 
 
-[source]: https://github.com/hroncok/python-minimization/blob/master/python-minimization.ipynb
-
 ## Copyright
 
 This document is placed in the public domain or under the CC0-1.0-Universal license, whichever is more permissive.
+
+[source]: https://github.com/hroncok/python-minimization/blob/master/python-minimization.ipynb
