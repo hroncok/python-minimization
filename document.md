@@ -486,7 +486,7 @@ For now, we plan to start with bytecode cache deduplication, and we will let the
 
 ## Copyright
 
-This document is placed in the public domain or under the CC0-1.0-Universal license, whichever is more permissive.
+This document is placed in the public domain or under the [CC0 1.0 Universal license](https://creativecommons.org/publicdomain/zero/1.0/), whichever is more permissive.
 
 The photos are [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
 
