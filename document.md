@@ -33,7 +33,7 @@ However, if any non-goal becomes a side effect of the solution of our goal, good
 
 tl;dr Python 3.8.1 in Fedora has 111 MiB (approximately 77 3.5" floppy disks), but we only **install 37.5 MiB by default** (26 floppy disks).
 
-![77 3.5" floppy disks](https://i.imgur.com/exrgnoQ.jpg)
+![77 3.5" floppy disks](https://github.com/hroncok/python-minimization/raw/master/77-floppy-disks-gray.jpg)
 *77 3.5" floppy disks, courtesy of Dana Walker. Imagine one of them is faulty.*
 
 (All numbers are real installed disk sizes based on the `python38` package installed on Fedora 31, x86_64. The split into subpackages is based on the `python3` package from Fedora 32. Slight differences between Fedora 31 and 32 or between various architectures are irrelevant here, we aim for a long term minimization. See the [source of the numbers][source].)
@@ -170,7 +170,7 @@ See the remaining lines in the [data source][source].
 
 Now when we know what is on those 77 floppy disks, we can decide which ones need to go.
 
-![77 3.5" floppy disks](https://i.imgur.com/w9NWTnP.jpg)
+![77 3.5" floppy disks](https://github.com/hroncok/python-minimization/raw/master/77-floppy-disks-color.jpg)
 *77 3.5" floppy disks, courtesy of Harold Miller. Shall we ditch the beige ones or the blue?*
 
 ### Solution 0: Do nothing, keep the status quo
