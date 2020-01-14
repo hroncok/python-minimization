@@ -464,13 +464,13 @@ It is also important to realize that most of the standard library modules have d
 
 When the bytecode cache is updated for some reason, e.g. because the source file was updated by an administrator, the cache file is recreated, effectively breaking the hardlink. As more files get updated this way, the size naturally increases, but this does not break users' expectations.
 
-As a nice benefit, we can automatically do this with all Fedora Python RPM packages without any cons (except for an insignificant slowdown when comparing the files during build) saving potentially large amounts of space. Cloud providers will go bankrupt.
+As a nice benefit, we can automatically do this with all Fedora Python RPM packages without any cons (except for an insignificant slowdown when comparing the files during build) saving potentially large amounts of space. That's a lot of saved money in the cloud world.
 
 As a single data point for that general slim down: On my workstation I have 360 MiB of various Python 3.7 bytecode files in `/usr` and I can save 108 MiB.
 
 ### Solution 10: Stop shipping mandatory Python, rewrite dnf to Rust
 
-The main reason we need to ship Python everywhere is the package manager -- dnf. If we rewrite dnf to some non-Python, possibly compiled language such as Rust (or C if we enjoy segfaults), we don't need to ship Python at all. This might sound crazy, but see for example [microdnf](https://github.com/rpm-software-management/microdnf) -- a minimal dnf for (mostly) Docker containers that uses libdnf and hence doesn't require Python.
+The main reason we need to ship Python everywhere is the package manager -- dnf. If we rewrite dnf to some non-Python, possibly compiled language such as Rust (or C if we are more traditional), we don't need to ship Python at all. This might sound crazy, but see for example [microdnf](https://github.com/rpm-software-management/microdnf) -- a minimal dnf for (mostly) Docker containers that uses libdnf and hence doesn't require Python.
 
 This solution **saves 37.5 MiB / 100%** of mandatory Python. It possibly also saves more space by reducing the amount of installed Python packages, but increases the size of dnf itself. We can most likely assume a compiled executable would have a lesser footprint than a handful of Python modules used by dnf -- this doesn't violate constraint (4): the combined footprint of (micro)dnf + Python won't be significantly larger than now.
 
