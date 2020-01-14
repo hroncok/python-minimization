@@ -91,7 +91,7 @@ Each pure Python module comes in 4 files:
 
 Each of these files has a different purpose (explained below) and each of the files is wasting precious storage space.
 
-In total, the different file types in `/usr/lib64/python3.8/` take:
+In total, the different file types in `/usr/lib64/python3.8/` take (without 3rd party packages):
 
  - `.py`: 26.4 MiB
  - `.pyc`: 22.0 MiB
@@ -123,7 +123,7 @@ We currently package the source files and the bytecode cache files as well, but 
 
 #### .pyc regular (not optimized) bytecode cache
 
-When a pure Python module gets imported for the first time after it has been modified (or first time ever), the bytecode cache is is created in `__pycache__/<modulename>.cpython-38.pyc` to be later used on subsequent imports. Why are the bytecode cache files created during the buildtime of the RPM `python3` package and shipped with the corresponding `.py` file? This is what would would happen if the files were not shipped:
+When a pure Python module gets imported for the first time after it has been modified (or first time ever), the bytecode cache is is created in `__pycache__/<modulename>.cpython-38.pyc` to be later used on subsequent imports. Why are the bytecode cache files created during the buildtime of the RPM `python3` package and shipped with the corresponding `.py` file? This is what would happen if the files were not shipped:
 
  1. If a non-root user executes Python code, Python won't succeed saving the file, the bytecode cache will not be written and hence there will be no future benefits from having the cache in the first place -- startup will be slower. On each import, Python will attempt the write which might have further minor negative impact on performance.
  2. If a root user with restricted SELinux context executes Python code, then write operation will fail and the audit log will be pumped with AVC violations. The result is (1) + lots of noise.
@@ -217,12 +217,12 @@ This would however **violate the (1) and (3) criterion**. Python users expect wo
 Alternatively such thing would no longer be allowed to name itself Python. It would merely be a "minimal Python" with a separate entrypoint - and that **violates the (3) or (4) criterion** (depending on the actual implementation).
 
 Alternatively, this change would need to be driven upstream -- track dependencies on standard library modules and allow it to be shipped in parts. See also our draft [PEP 534](https://www.python.org/dev/peps/pep-0534/) -- *Improved Errors for Missing Standard Library Modules*.
-If implemented, this wold allow us to split the library to atomic parts and only make the actually used modules mandatory, saving an unknown amount of space (arguably quite large) and several external dependencies as well (such as `libsqlite3.so`, `libgdbm.so` etc.). We could basically do the `python3-tkinter` split at scale, via an upstream supported way.
+If implemented, this would allow us to split the library to atomic parts and only make the actually used modules mandatory, saving an unknown amount of space (arguably quite large) and several external dependencies as well (such as `libsqlite3.so`, `libgdbm.so` etc.). We could basically do the `python3-tkinter` split at scale, via an upstream supported way.
 
 
 ### Solution 3: Compress large data-like modules
 
-Some pure Python modules, like `encodings` or `pydoc_data` contain mostly data. We could compress the data in the modules.For example `pydoc_data` is basically a dictionary with very long strings. Those strings are repeated in source as well as various bytecode cache files.
+Some pure Python modules, like `encodings` or `pydoc_data` contain mostly data. We could compress the data in the modules. For example `pydoc_data` is basically a dictionary with very long strings. Those strings are repeated in source as well as various bytecode cache files.
 
 We could store them as compressed bytestrings instead.
 
@@ -250,10 +250,10 @@ This would require a great deal of testing and thorough analysis of half a milli
 
 Not only this will most likely break things, it will probably also **violate constraints (1) and (2)** (Python and Fedora users' expectations). It can also increase the startup time.
 
-To mitigate that, we might want to ship RPM packages with the standard library -- one uncompressed and one zipped:
+To mitigate that, we might want to ship 2 RPM packages with the standard library -- one uncompressed and one zipped:
 
  - The `python3-libs` package would *Require* any of them (via virtual provides or boolean requires: `Requires: (python3-libs-modules or python3-libs-modules-zip)`).
- - The `python3-lib` package would **Recommend** the uncompressed package.
+ - The `python3-libs` package would **Recommend** the uncompressed package.
  - To avoid increasing the total filesystem footprint when both packages are installed, the packages might conflict with each other -- however that might be a bad user experience.
 
 Nevertheless, this might (in theory) **save 17.8 MiB / 47 %**.
@@ -403,7 +403,7 @@ If we get upstream support for following symbolic links, we might do something l
 
 With the two optimized caches optionally `%ghost`ed if combined with other solutions.
 
-If we don't get upstream support for following symbolic links, we might ship the duplicate bytecode cache files and change them to a hardlink in RPM scriptlet / trigger (if they are on the same filesystem, which is very likely).
+If we don't get upstream support for following symbolic links, we might ship the duplicate bytecode cache files and change them to a hardlink in RPM scriptlet / trigger (if they are on the same filesystem, which is very likely), however that only helps with limited storage space (and it requires the storage during installation), not limited bandwith.
 
 Alternatively, we might change the way the source and bytecode caches are prioritized on import time, with upstream coordination, to allow having the non-optimized `.pyc` file in just one location without losing the benefits of having the source files. Such as having an (optionally compressed) source file in a `__pysource__` directory and loading it when showing tracebacks.
 
@@ -481,7 +481,7 @@ However, most importantly, this solution **violates constraint (2)**: Fedora use
 
 You can see that some of the solutions offer significant slim-down with very little struggle, while other solutions may turn out to be to breaking. At the same time, various solutions can be combined.
 
-For now, we plan to start with bytecode cache deduplication, and we will let the Fedora community discuss our proposals. After all, there might be holes in them and the list is certainly not complete.
+For now, we plan to [start with bytecode cache deduplication](https://github.com/fedora-python/compileall2/issues/16), and we will let the Fedora community discuss our proposals. After all, there might be holes in them and the list is certainly not complete.
 
 
 ## Copyright
