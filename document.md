@@ -8,7 +8,8 @@
 
 One of the biggest things in Fedora is Python. Because [Fedora loves Python](https://fedoralovespython.org/) and because the package manager for Fedora packages -- dnf -- happens to be written in Python, the Python interpreter and its standard library comes pre-installed on many (if not all) Fedora systems and is often not possible to remove it without destroying the system completely or making it unmanageable.
 
-Python comes with [Batteries Included](https://en.wikipedia.org/wiki/Batteries_Included) -- the standard library is quite big. While pleasant for the programmers, this comes with a large filesystem footprint not entirely desired in Fedora. In this document, we will analyze the footprint and offer several minimization solutions/ideas with their challenges, pros (MiB saved) and cons.
+Python comes with [Batteries Included](https://en.wikipedia.org/wiki/Batteries_Included) -- the standard library is quite big. While pleasant for the programmers, this comes with a large filesystem footprint not entirely desired in Fedora. In this document, we will analyze the footprint and offer several minimization solutions/ideas with their challenges, pros (MiB saved) and cons. It is a list of ideas; **we're not promising to do any of this**.
+
 
 **Goal:**
 
@@ -28,6 +29,9 @@ However, if any non-goal becomes a side effect of the solution of our goal, good
  3. Do not break Fedora packagers' expectations. As an example, we don't [require "system tools" to use a custom Python entrypoint](https://fedoraproject.org/wiki/Changes/System_Python), such as `/usr/libexec/platform-python` or `/usr/libexec/system-python`.
  4. Do not significantly increase the filesystem footprint of the default Python installation. As an example, we don't package [two separate versions (and stacks) of Python](https://fedoraproject.org/wiki/Changes/Platform_Python_Stack) -- one minimal for dnf (or Ansible) and another "normal" for the users.
  5. Do not diverge from upstream significantly (but we can drive upstream change). As an example, we don't reinvent the import machinery of Python downstream only, but we might do it in upstream and even [use Fedora to pioneer the change](https://fedoraproject.org/wiki/Changes/python3_c.utf-8_locale).
+
+The listed constraints are not absolute. We will mention in each solution, whether we feel that some constraints are violated, but that doesn't mean we shall outright discard the solution.
+
 
 ## How large is Python, actually
 
@@ -72,7 +76,7 @@ The Python 3.8 standard library has 276 different top-level modules, the biggest
  1. `multiprocessing`: 925 KiB
  1. `unittest`: 750 KiB
 
-Some modules here are interesting becasue they contain mostly data (`encodings`, `pydoc_data`, `unicodedata`), or because they are obviously developer oriented and very rarely used on runtime (`distutils`, `lib2to3`, `unittest`).
+Some modules here are interesting because they contain mostly data (`encodings`, `pydoc_data`, `unicodedata`), or because they are obviously developer oriented and very rarely used on runtime (`distutils`, `lib2to3`, `unittest`).
 
 A special case is the `ensurepip` module -- it has only 34.4 KiB, but it *Requires* unbundled `python-pip-wheel` (1.18 MiB) and `python-setuptools-wheel` (348 KiB) - that puts it between (3) and (4) in the above statistics with 1.56 MiB in total.
 
@@ -217,7 +221,7 @@ This would however **violate the (1) and (3) criterion**. Python users expect wo
 Alternatively such thing would no longer be allowed to name itself Python. It would merely be a "minimal Python" with a separate entrypoint - and that **violates the (3) or (4) criterion** (depending on the actual implementation).
 
 Alternatively, this change would need to be driven upstream -- track dependencies on standard library modules and allow it to be shipped in parts. See also our draft [PEP 534](https://www.python.org/dev/peps/pep-0534/) -- *Improved Errors for Missing Standard Library Modules*.
-If implemented, this would allow us to split the library to atomic parts and only make the actually used modules mandatory, saving an unknown amount of space (arguably quite large) and several external dependencies as well (such as `libsqlite3.so`, `libgdbm.so` etc.). We could basically do the `python3-tkinter` split at scale, via an upstream supported way.
+If implemented, this would allow us to split the library to several parts (either minimal + rest, or per module, or anything in between) and only make the actually used modules mandatory, saving an unknown amount of space (arguably quite large) and several external dependencies as well (such as `libsqlite3.so`, `libgdbm.so` etc.). We could basically do the `python3-tkinter` split at scale, via an upstream supported way.
 
 
 ### Solution 3: Compress large data-like modules
@@ -284,6 +288,8 @@ As a workaround, we might work with the SELinux experts to allow the Python proc
 This could be a **potential security problem** -- any malicious code written in Python would be able to store malicious bytecode in the cache -- all other invocations of Python would execute that bytecode instead of the proper one.
 
 As such, we *think* this **violates constraint (2)** -- Fedora users expect that SELinux keeps them safe. However, we don't really know what level of protection is expected here: This might require further discussions.
+
+XXX Marker file to prevent cache write attempts.
 
 #### Problem 5.3: Leftover bytecode cache files
 
@@ -407,10 +413,12 @@ If we don't get upstream support for following symbolic links, we might ship the
 
 Alternatively, we might change the way the source and bytecode caches are prioritized on import time, with upstream coordination, to allow having the non-optimized `.pyc` file in just one location without losing the benefits of having the source files. Such as having an (optionally compressed) source file in a `__pysource__` directory and loading it when showing tracebacks.
 
+We could also explore this solution with only some modules (e.g. big data modules, described in *Solution 3: Compress large data-like modules*: `encodings`, `pydoc_data`). For such limited scope, we could simply only ship the one `.pyc` file (one optimization level without sources).
+
 
 ### Solution 8: Compress .pyc files
 
-We might propose an upstream change (pioneered in Fedora) to add an option to compress the `.pyc` files. We would add a "compressed" flag to the `.pyc` header, and we would change `importlib` to unzip the payload before unmarshalling (deserializing) the bytecode.
+We might propose an upstream change (pioneered in Fedora) to add an option to [compress the `.pyc` files](https://bugs.python.org/issue22789). We would add a "compressed" flag to the `.pyc` header, and we would change `importlib` to unzip the payload before unmarshalling (deserializing) the bytecode.
 
 This would potentially save **10.2 MiB / 27.2%**, but it might have negative impact on performance. The number is based on actually zipping each individual `.pyc` file, not on only compressing the content.
 
@@ -458,7 +466,7 @@ When we examine all the bytecode cache files currently shipped with `python3-lib
  - 68 identical optimization 1 and 2 pairs
  - 62 identical optimization 0, 1 and 2 triads (already counted in both of the above)
 
-Since all of the bytecode caches are kept within the same folder, we can in fact hardlink them between each other and **save 4.0 MiB / 10.7 %**.
+Since all of the bytecode caches are kept within the same folder, we can in fact hardlink them between each other and **save 4.0 MiB / 10.7 %**. Even if this would be [done automagically by the filesystem](https://btrfs.wiki.kernel.org/index.php/Deduplication), by doing it explicitly we also save the bandwidth -- the RPM packages are smaller.
 
 It is also important to realize that most of the standard library modules have docstrings (except empty `__init__.py` files), but only every fourth has `__debug__` conditionals or asserts. If we also go with a solution that removes the second optimization level bytecode cache and combine it with this one, we can deduplicate optimization level 1 bytecode cache for three quarters of the modules.
 
@@ -480,6 +488,8 @@ However, most importantly, this solution **violates constraint (2)**: Fedora use
 ## Conclusion
 
 You can see that some of the solutions offer significant slim-down with very little struggle, while other solutions may turn out to be to breaking. At the same time, various solutions can be combined.
+
+It is important to note that the solutions can contradict each other and the storage savings cannot be generally summed when combining them. As an example, we cannot deduplicate different optimization level bytecode cache files and ship them from different optional subpackages at the same time.
 
 For now, we plan to [start with bytecode cache deduplication](https://github.com/fedora-python/compileall2/issues/16), and we will let the Fedora community discuss our proposals. After all, there might be holes in them and the list is certainly not complete.
 
