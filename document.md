@@ -279,19 +279,7 @@ This can result in potentially slower start of Python apps. However, that might 
 
 Optionally, we might patch Python to warn in that case and suggest installing the appropriate subpackage. That would of course be a downstream only patch and would **violate constraint (5)**. Alternatively, the warning might suggest running a specific command as root to populate the cache -- that might (or might not) be acceptable upstream. Arguably it is not a very nice user experience, and also it only helps with limited bandwith, not limited storage space.
 
-#### Problem 5.2: SELinux denials
-
-When a root user with restricted SELinux context runs Python code, the bytecode cache is not created and the audit log is pumped with AVC violations. The result is the same as in 5.1 plus noise.
-
-As a workaround, we might work with the SELinux experts to allow the Python process to write the bytecode cache even in restricted context.
-
-This could be a **potential security problem** -- any malicious code written in Python would be able to store malicious bytecode in the cache -- all other invocations of Python would execute that bytecode instead of the proper one.
-
-As such, we *think* this **violates constraint (2)** -- Fedora users expect that SELinux keeps them safe. However, we don't really know what level of protection is expected here: This might require further discussions.
-
-XXX Marker file to prevent cache write attempts.
-
-#### Problem 5.3: Leftover bytecode cache files
+#### Problem 5.2: Leftover bytecode cache files
 
 When a root user with unrestricted SELinux context runs Python code, the bytecode cache is created.
 
@@ -328,7 +316,37 @@ Our experiments show that if two packages co-own a file and one of them is marke
 
 Hence, we anticipate this point as potentially non-problematic, however real testing with the `python3` package has not yet been done.
 
-*Note:* If we are to eventually adapt this in all Python RPM packages to gain even more space, this would certainly need more RPM-level abstraction with macros and dark magic (like the debuginfo packages) -- we cannot anticipate all Fedora Python package maintainers to manually do this. However for now, we would only do it in `python3-libs` as written in the goal of this document.
+#### Problem 5.3: SELinux denials
+
+When a root user with restricted SELinux context runs Python code, the bytecode cache is not created and the audit log is pumped with AVC violations. The result is the same as in 5.1 plus noise.
+
+As a workaround, we might work with the SELinux experts to allow the Python process to write the bytecode cache even in restricted context.
+
+This could be a **potential security problem** -- any malicious code written in Python would be able to store malicious bytecode in the cache -- all other invocations of Python would execute that bytecode instead of the proper one.
+
+As such, we *think* this **violates constraint (2)** -- Fedora users expect that SELinux keeps them safe. However, we don't really know what level of protection is expected here: This might require further discussions.
+
+As a solution to this problem, we might stop Python from attempting to write the bytecode cache in the first place. That would still preserve problem 5.1 (that is fine), but would also solve 5.2. However, we cannot just patch Python to stop writing bytecode cache, as that would violate constraints (1) and (5). We might however pioneer an upstream change, that skips writing bytecode cache if a certain marker is present in the `__pycache__` directory:
+
+
+```spec
+%files libs
+.../module.py
+%dir .../__pycache__/
+.../__pycache__/cpython-38.nowrite
+
+%files libs-bytecode-cache
+.../__pycache__/module.cpython-38.pyc
+... other opt levels in this or other subpackages ...
+```
+
+(The name of the marker is just an example.) If present, all present bytecode cache would be read but there would be no attempts to write it. As a result, users would gain the cache benefit when they install the bytecode cache package(s) (recommended by the `python3-libs` package), but Python would not attempt to create the files. This is a reasonable compromise:
+
+ - Default remains big and fast (cached).
+ - Minimal is small and a bit slower.
+ - No SELinux problems.
+
+*Note:* If we are to eventually adapt this solution (in either form) in all Python RPM packages to gain even more space, this would certainly need more RPM-level abstraction with macros and dark magic (like the debuginfo packages) -- we cannot anticipate all Fedora Python package maintainers to manually do this. However for now, we would only do it in `python3-libs` as written in the goal of this document.
 
 
 ### Solution 6: Stop shipping mandatory optimized bytecode cache
@@ -357,7 +375,10 @@ Python 3.5 has altered the paths to make optimization 1 and 2 cache coexistable 
 
 This has been the case **since Fedora 24** and **nobody has ever reported it as a problem** -- hence we might just drop the optimization level 2 bytecode cache and consider the problems an unsupported corner case. That would **save 5.2 MiB / 14%**. Technically this is wrong, but pragmatically it works just fine.
 
-Alternatively, we might make a case upstream and deprecate and remove `-00` because we don't use it -- however we are not sure if that is a good enough reason.
+Alternatively, we might make a case upstream and deprecate and eventually remove `-00` because we don't use it -- however we are not sure if that is a good enough reason.
+
+With the marker file proposed in the previous solution, we can outright drop the optimization level 2 bytecode cache for good (or move it to a package that is not even *Recommended*, only *Suggested*).
+
 
 ### Solution 7: Stop shipping mandatory source files, ship .pyc instead
 
