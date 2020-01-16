@@ -346,6 +346,8 @@ As a solution to this problem, we might stop Python from attempting to write the
  - Minimal is small and a bit slower.
  - No SELinux problems.
 
+Alternatively, the marker could mean "this directory and everything in it" and we would just put one marker in `/usr/lib(64)/python3.X/` and none of the RPM shipped Python packages would write the bytecode cache files. (Note that `sudo pip` etc. installed packages are in `/usr/local` on Fedora.) A traversal lookup for the marker would be [quite fast even in deep directories](https://lists.fedoraproject.org/archives/list/devel@lists.fedoraproject.org/message/XUDXUOP4T5LTB2WZ27TSX2BOTK765Y7N/).
+
 *Note:* If we are to eventually adapt this solution (in either form) in all Python RPM packages to gain even more space, this would certainly need more RPM-level abstraction with macros and dark magic (like the debuginfo packages) -- we cannot anticipate all Fedora Python package maintainers to manually do this. However for now, we would only do it in `python3-libs` as written in the goal of this document.
 
 
