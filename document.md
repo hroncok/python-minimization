@@ -1,5 +1,7 @@
 # Python minimization in Fedora
 
+[Send comments via this mailing list thread][email].
+
 > While Fedora is well suited for traditional physical/virtual workstations and servers, it is often overlooked for use cases beyond traditional installs.
 > 
 > Some modern types of deployments — such as IoT and containers — are quite sensitive to size. For IoT that's usually slow data connections (for updates/management) and for cloud and containers it’s the massive scale.
@@ -523,4 +525,9 @@ This document is placed in the public domain or under the [CC0 1.0 Universal lic
 
 The photos are [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
 
+## Discussion
+
+[Send comments via this mailing list thread][email].
+
 [source]: https://github.com/hroncok/python-minimization/blob/master/python-minimization.ipynb
+[email]: https://lists.fedoraproject.org/archives/list/devel@lists.fedoraproject.org/thread/LACP3PFQPUO6BQQLYYJDFF4CR3DHWRSQ/
