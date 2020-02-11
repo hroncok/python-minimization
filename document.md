@@ -448,7 +448,9 @@ We might propose an upstream change (pioneered in Fedora) to add an option to [c
 This would potentially save **10.2 MiB / 27.2%**, but it might have negative impact on performance. The number is based on actually zipping each individual `.pyc` file, not on only compressing the content.
 
 
-### Solution 9: Deduplicate bytecode cache
+### Solution 9: Deduplicate bytecode cache [DONE]
+
+**UPDATE:** After trying to implement this solution we have figured out that `/usr/lib/rpm/brp-python-hardlink` is enabled by default and does this. Hence **we are already doing this today**. Our calculations have not taken hard links into consideration, so the savings here are technically correct but part of the status quo. Sorry about the confusion.
 
 Given the nature of the bytecode caches, the non-optimized, optimized level 1 and optimized level 2 `.pyc` files may or may not be identical.
 
